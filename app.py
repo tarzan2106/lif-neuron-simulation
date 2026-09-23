@@ -33,18 +33,18 @@ if 'lista_de_pulsos' not in st.session_state:
 # BARRA LATERAL
 # =====================================================================
 with st.sidebar:
-    st.header("🎛️ Parâmetros de Entrada")
+    st.header("🎛️ Parametrização dos pulsos de corrente de entrada")
     
-    tab_det, tab_estoc = st.tabs(["🎯 Exato", "🎲 Ruído (Poisson)"])
+    tab_det, tab_estoc = st.tabs(["🎯 Pulsos exatos", "🎲 Pulsos estocásticos"])
     
     with tab_det:
-        st.subheader("Gerador de Trens de Pulso")
-        n_det = st.number_input("Quantidade (N)", min_value=1, value=1, step=1, key="n_det")
+        st.subheader("Gerador de pulsos exatos")
+        n_det = st.number_input("Quantidade de pulsos", min_value=1, value=1, step=1, key="n_det")
         amp_det = st.text_input("Amplitude (ex: 60u)", value="60u", key="amp_det")
         larg_det = st.text_input("Largura (ex: 10n)", value="10n", key="larg_det")
-        atraso_det = st.text_input("Atraso/Espaço (ex: 5n)", value="5n", key="atraso_det")
+        atraso_det = st.text_input("Espaçamento entre os pulsos (ex: 5n)", value="5n", key="atraso_det")
         
-        if st.button("➕ Adicionar Exato", use_container_width=True):
+        if st.button("➕ Adicionar pulsos ao sinal de entrada", key="btn_add_exato", use_container_width=True):
             if amp_det and larg_det and atraso_det:
                 for _ in range(n_det):
                     st.session_state.lista_de_pulsos.append({
@@ -56,11 +56,11 @@ with st.sidebar:
 
     with tab_estoc:
         st.subheader("Gerador de Ruído Biológico")
-        n_estoc = st.number_input("Quantidade de Pulsos", min_value=1, value=100, step=10)
-        larg_estoc = st.text_input("Largura Fixa (ex: 10n)", value="10n")
-        espaco_estoc = st.text_input("Espaçamento Médio (ex: 50n)", value="50n")
+        n_estoc = st.number_input("Quantidade de pulsos", min_value=1, value=100, step=10, key="n_estoc")
+        larg_estoc = st.text_input("Largura (ex: 10n)", value="10n")
+        espaco_estoc = st.text_input("Espaçamento médio entre os pulsos (Exponencial) (ex: 50n)", value="50n")
         
-        tipo_dist = st.radio("Distribuição de Amplitude", ["Uniforme (Min/Max)", "Gaussiana (Média/Std)"])
+        tipo_dist = st.radio("Distribuição da amplitude", ["Uniforme (Min/Max)", "Gaussiana (Média/Std)"])
         
         if tipo_dist == "Uniforme (Min/Max)":
             col1, col2 = st.columns(2)
@@ -71,7 +71,7 @@ with st.sidebar:
             vmed_estoc = col1.text_input("Média", value="60u")
             vstd_estoc = col2.text_input("Desvio", value="15u")
             
-        if st.button("➕ Adicionar Aleatório", use_container_width=True, type="primary"):
+        if st.button("➕ Adicionar pulsos ao sinal de entrada", key="btn_add_estocastico", use_container_width=True, type="primary"):
             espaco_medio = spice_to_float(espaco_estoc)
             if espaco_medio > 0:
                 for _ in range(n_estoc):
@@ -96,71 +96,66 @@ with st.sidebar:
 # =====================================================================
 # PAINEL PRINCIPAL
 # =====================================================================
-st.title("⚡ SNN Lab: Gerador de Padrões & Simulador LIF")
-st.markdown("Validação no nível do silício (SkyWater 130nm PDK) com injeção parametrizada de estímulos e ruído de rede.")
+st.title("⚡ Simulação do Neurônio LIF (SkyWater 130nm)")
+st.markdown("Análise da resposta de um neurônio LIF a pulsos de correntes arbitrários na entrada.")
 
 if not st.session_state.lista_de_pulsos:
     st.info("👈 Use o painel lateral para configurar e adicionar pulsos ao circuito.")
 else:
-    # --- 1. A Fila de Memória (Tabela + Gráfico de Preview) ---
-    st.subheader("🛒 Fila de Estímulos (Memória e Preview)")
+    # --- 1. A Fila de Memória (Tabela) ---
+    st.subheader("🛒 Lista de pulsos")
     
-    # Criamos duas colunas para mostrar a tabela e os botões ao lado do gráfico
-    col_tabela, col_preview = st.columns([1, 2])
+    df_pulsos = pd.DataFrame(st.session_state.lista_de_pulsos)
+    df_pulsos.index += 1 
+    st.dataframe(df_pulsos, use_container_width=True, height=200)
     
-    with col_tabela:
-        df_pulsos = pd.DataFrame(st.session_state.lista_de_pulsos)
-        df_pulsos.index += 1 
-        st.dataframe(df_pulsos, use_container_width=True, height=250)
-        
-        if st.button("🗑️ Limpar Fila", use_container_width=True):
+    col_btn, _ = st.columns([1, 5])
+    with col_btn:
+        if st.button("🗑️ Limpar lista", use_container_width=True):
             st.session_state.lista_de_pulsos.clear()
             st.rerun()
             
-    with col_preview:
-        # Lógica matemática leve apenas para o preview (sem SPICE)
-        prev_t = [0.0]
-        prev_y = [0.0]
-        t_abs = 0.0
-        t_rise = 1e-12
+    # --- 2. O Gráfico de Preview (Logo abaixo da lista) ---
+    st.markdown("### 📈 Pré-visualização do Sinal")
+    
+    prev_t = [0.0]
+    prev_y = [0.0]
+    t_abs = 0.0
+    t_rise = 1e-12
+    
+    for p in st.session_state.lista_de_pulsos:
+        amp = spice_to_float(p["Amplitude"]) * 1e6 
+        largura = spice_to_float(p["Largura"])
+        atraso = spice_to_float(p["Espaçamento"])
         
-        for p in st.session_state.lista_de_pulsos:
-            amp = spice_to_float(p["Amplitude"]) * 1e6 # Converte para microAmperes
-            largura = spice_to_float(p["Largura"])
-            atraso = spice_to_float(p["Espaçamento"])
-            
-            t0 = t_abs + atraso
-            t1 = t0 + t_rise
-            t2 = t1 + largura
-            t3 = t2 + t_rise
-            
-            # Adicionamos os pontos aos eixos do gráfico de preview
-            prev_t.extend([t0 * 1e6, t1 * 1e6, t2 * 1e6, t3 * 1e6]) # Converte o tempo para microSegundos
-            prev_y.extend([0.0, amp, amp, 0.0])
-            
-            t_abs = t3
-            
-        # Adiciona um restinho de tempo no final para a linha não cortar seca
-        prev_t.append((t_abs + 10e-9) * 1e6)
-        prev_y.append(0.0)
+        t0 = t_abs + atraso
+        t1 = t0 + t_rise
+        t2 = t1 + largura
+        t3 = t2 + t_rise
         
-        # Desenha o preview visual interativo
-        fig_preview = go.Figure()
-        fig_preview.add_trace(go.Scatter(x=prev_t, y=prev_y, mode='lines', line=dict(color='dodgerblue', width=2), fill='tozeroy'))
-        fig_preview.update_layout(
-            title="Sinal de Entrada PWL Gerado",
-            xaxis_title="Tempo (µs)",
-            yaxis_title="Amplitude (µA)",
-            height=290,
-            margin=dict(l=0, r=0, t=30, b=0),
-            hovermode="x unified"
-        )
-        st.plotly_chart(fig_preview, use_container_width=True)
+        prev_t.extend([t0 * 1e6, t1 * 1e6, t2 * 1e6, t3 * 1e6]) 
+        prev_y.extend([0.0, amp, amp, 0.0])
+        
+        t_abs = t3
+        
+    prev_t.append((t_abs + 10e-9) * 1e6)
+    prev_y.append(0.0)
+    
+    fig_preview = go.Figure()
+    fig_preview.add_trace(go.Scatter(x=prev_t, y=prev_y, mode='lines', line=dict(color='dodgerblue', width=2), fill='tozeroy'))
+    fig_preview.update_layout(
+        xaxis_title="Tempo (µs)",
+        yaxis_title="Amplitude (µA)",
+        height=350,
+        margin=dict(l=0, r=0, t=30, b=0),
+        hovermode="x unified"
+    )
+    st.plotly_chart(fig_preview, use_container_width=True)
 
-    # --- 2. O Cérebro do SPICE e Botão de Execução ---
+    # --- 3. O Cérebro do SPICE e Botão de Execução ---
     st.divider()
     
-    if st.button("🚀 RODAR SIMULAÇÃO SPICE NO SILÍCIO", type="primary", use_container_width=True):
+    if st.button("🚀 RODAR SIMULAÇÃO", type="primary", use_container_width=True):
         with st.spinner('A compilar a Netlist e a resolver matrizes SPICE (130nm)...'):
             
             pwl_pontos = ["0 0"]
@@ -269,34 +264,9 @@ quit
                 st.error("Falha ao ler os dados do SPICE.")
                 st.stop()
 
-            st.success(f"Simulação concluída! Foram processados {len(st.session_state.lista_de_pulsos)} estímulos.")
+            st.success(f"Simulação concluída! [{len(st.session_state.lista_de_pulsos)}] pulsos de entrada processados.")
             
-            tab_junto, tab_separado = st.tabs(["📉 Gráfico Sobreposto", "📊 Gráficos Separados"])
-            
-            with tab_junto:
-                fig_junto = make_subplots(specs=[[{"secondary_y": True}]])
-
-                fig_junto.add_trace(go.Scatter(x=tempos_us, y=v_membrana, mode='lines', name='Vm (V)',
-                                         line=dict(color='orange', width=2)), secondary_y=False)
-                
-                fig_junto.add_trace(go.Scatter(x=tempos_us, y=v_saida, mode='lines', name='Spike (V)',
-                                         line=dict(color='green', width=2)), secondary_y=False)
-                
-                fig_junto.add_trace(go.Scatter(x=tempos_us, y=i_entrada, mode='lines', name='Corrente (µA)',
-                                         line=dict(color='dodgerblue', width=2), opacity=0.6), secondary_y=True)
-
-                fig_junto.update_layout(
-                    title="Análise Sobreposta de Transientes (Clique nos nomes da legenda para ocultar curvas)",
-                    xaxis_title="Tempo (µs)",
-                    hovermode="x unified",
-                    height=500,
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                )
-
-                fig_junto.update_yaxes(title_text="Tensão (V)", range=[-0.1, 1.2], secondary_y=False)
-                fig_junto.update_yaxes(title_text="Corrente (µA)", secondary_y=True)
-
-                st.plotly_chart(fig_junto, use_container_width=True)
+            tab_separado, tab_junto = st.tabs(["📊 Resposta", "📉 Resposta (gráfico único)"])
             
             with tab_separado:
                 fig_sep = make_subplots(
@@ -326,3 +296,27 @@ quit
                 fig_sep.update_xaxes(title_text="Tempo (µs)", row=3, col=1)
                 
                 st.plotly_chart(fig_sep, use_container_width=True)
+
+            with tab_junto:
+                fig_junto = make_subplots(specs=[[{"secondary_y": True}]])
+
+                fig_junto.add_trace(go.Scatter(x=tempos_us, y=v_membrana, mode='lines', name='Vm (V)',
+                                         line=dict(color='orange', width=2)), secondary_y=False)
+                
+                fig_junto.add_trace(go.Scatter(x=tempos_us, y=v_saida, mode='lines', name='Spike (V)',
+                                         line=dict(color='green', width=2)), secondary_y=False)
+                
+                fig_junto.add_trace(go.Scatter(x=tempos_us, y=i_entrada, mode='lines', name='Corrente (µA)',
+                                         line=dict(color='dodgerblue', width=2), opacity=0.6), secondary_y=True)
+
+                fig_junto.update_layout(
+                    xaxis_title="Tempo (µs)",
+                    hovermode="x unified",
+                    height=500,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
+
+                fig_junto.update_yaxes(title_text="Tensão (V)", range=[-0.1, 1.2], secondary_y=False)
+                fig_junto.update_yaxes(title_text="Corrente (µA)", secondary_y=True)
+
+                st.plotly_chart(fig_junto, use_container_width=True)
