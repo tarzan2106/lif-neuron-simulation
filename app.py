@@ -12,7 +12,7 @@ import random
 st.set_page_config(page_title="SNN Lab EDA", page_icon="⚡", layout="wide")
 
 # =====================================================================
-# FUNÇÃO AUXILIAR: Traduz sufixos SPICE para float matemático
+# FUNÇÃO AUXILIAR: Traduz sufixos SPICE para float
 # =====================================================================
 def spice_to_float(valor_str):
     valor_str = str(valor_str).lower().strip()
@@ -24,20 +24,19 @@ def spice_to_float(valor_str):
     except ValueError: return 0.0
 
 # =====================================================================
-# ESTADO DA SESSÃO (A memória da nossa ferramenta)
+# ESTADO DA SESSÃO (Memória)
 # =====================================================================
 if 'lista_de_pulsos' not in st.session_state:
     st.session_state.lista_de_pulsos = []
 
 # =====================================================================
-# BARRA LATERAL (PAINEL DE CONTROLE)
+# BARRA LATERAL
 # =====================================================================
 with st.sidebar:
     st.header("🎛️ Parâmetros de Entrada")
     
     tab_det, tab_estoc = st.tabs(["🎯 Exato", "🎲 Ruído (Poisson)"])
     
-    # --- ABA 1: SINAIS DETERMINÍSTICOS ---
     with tab_det:
         st.subheader("Gerador de Trens de Pulso")
         n_det = st.number_input("Quantidade (N)", min_value=1, value=1, step=1, key="n_det")
@@ -55,7 +54,6 @@ with st.sidebar:
             else:
                 st.error("Preencha todos os campos!")
 
-    # --- ABA 2: SINAIS ESTOCÁSTICOS ---
     with tab_estoc:
         st.subheader("Gerador de Ruído Biológico")
         n_estoc = st.number_input("Quantidade de Pulsos", min_value=1, value=100, step=10)
@@ -96,34 +94,75 @@ with st.sidebar:
                 st.rerun()
 
 # =====================================================================
-# PAINEL PRINCIPAL (CENTRO DA TELA)
+# PAINEL PRINCIPAL
 # =====================================================================
 st.title("⚡ SNN Lab: Gerador de Padrões & Simulador LIF")
 st.markdown("Validação no nível do silício (SkyWater 130nm PDK) com injeção parametrizada de estímulos e ruído de rede.")
 
-# --- 1. A Fila de Memória ---
 if not st.session_state.lista_de_pulsos:
     st.info("👈 Use o painel lateral para configurar e adicionar pulsos ao circuito.")
 else:
-    st.subheader("🛒 Fila de Estímulos (Memória)")
+    # --- 1. A Fila de Memória (Tabela + Gráfico de Preview) ---
+    st.subheader("🛒 Fila de Estímulos (Memória e Preview)")
     
-    df_pulsos = pd.DataFrame(st.session_state.lista_de_pulsos)
-    df_pulsos.index += 1 
-    st.dataframe(df_pulsos, use_container_width=True, height=200)
+    # Criamos duas colunas para mostrar a tabela e os botões ao lado do gráfico
+    col_tabela, col_preview = st.columns([1, 2])
     
-    col1, col2 = st.columns([1, 5])
-    with col1:
+    with col_tabela:
+        df_pulsos = pd.DataFrame(st.session_state.lista_de_pulsos)
+        df_pulsos.index += 1 
+        st.dataframe(df_pulsos, use_container_width=True, height=250)
+        
         if st.button("🗑️ Limpar Fila", use_container_width=True):
             st.session_state.lista_de_pulsos.clear()
             st.rerun()
+            
+    with col_preview:
+        # Lógica matemática leve apenas para o preview (sem SPICE)
+        prev_t = [0.0]
+        prev_y = [0.0]
+        t_abs = 0.0
+        t_rise = 1e-12
+        
+        for p in st.session_state.lista_de_pulsos:
+            amp = spice_to_float(p["Amplitude"]) * 1e6 # Converte para microAmperes
+            largura = spice_to_float(p["Largura"])
+            atraso = spice_to_float(p["Espaçamento"])
+            
+            t0 = t_abs + atraso
+            t1 = t0 + t_rise
+            t2 = t1 + largura
+            t3 = t2 + t_rise
+            
+            # Adicionamos os pontos aos eixos do gráfico de preview
+            prev_t.extend([t0 * 1e6, t1 * 1e6, t2 * 1e6, t3 * 1e6]) # Converte o tempo para microSegundos
+            prev_y.extend([0.0, amp, amp, 0.0])
+            
+            t_abs = t3
+            
+        # Adiciona um restinho de tempo no final para a linha não cortar seca
+        prev_t.append((t_abs + 10e-9) * 1e6)
+        prev_y.append(0.0)
+        
+        # Desenha o preview visual interativo
+        fig_preview = go.Figure()
+        fig_preview.add_trace(go.Scatter(x=prev_t, y=prev_y, mode='lines', line=dict(color='dodgerblue', width=2), fill='tozeroy'))
+        fig_preview.update_layout(
+            title="Sinal de Entrada PWL Gerado",
+            xaxis_title="Tempo (µs)",
+            yaxis_title="Amplitude (µA)",
+            height=290,
+            margin=dict(l=0, r=0, t=30, b=0),
+            hovermode="x unified"
+        )
+        st.plotly_chart(fig_preview, use_container_width=True)
 
     # --- 2. O Cérebro do SPICE e Botão de Execução ---
     st.divider()
     
-    if st.button("🚀 RODAR SIMULAÇÃO SPICE", type="primary", use_container_width=True):
-        with st.spinner('A compilar a Netlist e a resolver matrizes SPICE...'):
+    if st.button("🚀 RODAR SIMULAÇÃO SPICE NO SILÍCIO", type="primary", use_container_width=True):
+        with st.spinner('A compilar a Netlist e a resolver matrizes SPICE (130nm)...'):
             
-            # --- Tradução Matemática ---
             pwl_pontos = ["0 0"]
             t_absoluto = 0.0
             t_rise = 1e-12 
@@ -160,7 +199,6 @@ else:
             pdk_path = "PDKs/sky130_fd_pr/models/corners/tt_lite.spice"
             c_mem = "300f"
             
-            # --- Netlist ---
             netlist_content = f"""* SNN: LIF - Tool Web App
 
 .include {pdk_path}
@@ -211,37 +249,30 @@ quit
             with open(netlist_path, "w") as file:
                 file.write(netlist_content)
 
-            # --- Execução do SPICE ---
             try:
                 subprocess.run(["ngspice", "-b", netlist_path], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except FileNotFoundError:
                 st.error("Erro: O NGSpice não foi encontrado no PATH do sistema.")
                 st.stop()
 
-            # --- Leitura de Dados ---
             tempos_us, i_entrada, v_membrana, v_saida = [], [], [], []
             try:
                 with open(data_path, "r") as f:
                     for linha in f:
                         if not linha.strip(): continue
                         colunas = [float(val) for val in linha.split()]
-                        tempos_us.append(colunas[0] * 1e6) # Microssegundos 
-                        i_entrada.append(colunas[1] * 1e6) # Microamperes
+                        tempos_us.append(colunas[0] * 1e6) 
+                        i_entrada.append(colunas[1] * 1e6) 
                         v_membrana.append(colunas[3])
                         v_saida.append(colunas[5])
             except FileNotFoundError:
                 st.error("Falha ao ler os dados do SPICE.")
                 st.stop()
 
-            # --- 3. Renderização com PLOTLY (Gráficos Interativos) ---
             st.success(f"Simulação concluída! Foram processados {len(st.session_state.lista_de_pulsos)} estímulos.")
             
-            # Criamos as Abas Visuais
             tab_junto, tab_separado = st.tabs(["📉 Gráfico Sobreposto", "📊 Gráficos Separados"])
             
-            # -----------------------------------------------------------------
-            # VISUALIZAÇÃO 1: SOBREPOSTO (EIXO DUPLO)
-            # -----------------------------------------------------------------
             with tab_junto:
                 fig_junto = make_subplots(specs=[[{"secondary_y": True}]])
 
@@ -251,7 +282,6 @@ quit
                 fig_junto.add_trace(go.Scatter(x=tempos_us, y=v_saida, mode='lines', name='Spike (V)',
                                          line=dict(color='green', width=2)), secondary_y=False)
                 
-                # Modificado: Corrente com linha contínua, azul mais claro (dodgerblue) e leve transparência
                 fig_junto.add_trace(go.Scatter(x=tempos_us, y=i_entrada, mode='lines', name='Corrente (µA)',
                                          line=dict(color='dodgerblue', width=2), opacity=0.6), secondary_y=True)
 
@@ -268,11 +298,7 @@ quit
 
                 st.plotly_chart(fig_junto, use_container_width=True)
             
-            # -----------------------------------------------------------------
-            # VISUALIZAÇÃO 2: SEPARADOS (SUBPLOTS EM CASCATA)
-            # -----------------------------------------------------------------
             with tab_separado:
-                # Criamos um gráfico com 3 linhas (uma para cada grandeza) com eixo X compartilhado
                 fig_sep = make_subplots(
                     rows=3, cols=1, 
                     shared_xaxes=True, 
@@ -280,23 +306,19 @@ quit
                     subplot_titles=("Corrente de Entrada", "Tensão de Membrana", "Spike de Saída")
                 )
                 
-                # Curva 1
                 fig_sep.add_trace(go.Scatter(x=tempos_us, y=i_entrada, mode='lines', name='Corrente (µA)',
                                          line=dict(color='dodgerblue', width=2)), row=1, col=1)
-                # Curva 2
                 fig_sep.add_trace(go.Scatter(x=tempos_us, y=v_membrana, mode='lines', name='Vm (V)',
                                          line=dict(color='orange', width=2)), row=2, col=1)
-                # Curva 3
                 fig_sep.add_trace(go.Scatter(x=tempos_us, y=v_saida, mode='lines', name='Spike (V)',
                                          line=dict(color='green', width=2)), row=3, col=1)
                 
                 fig_sep.update_layout(
                     height=700, 
                     hovermode="x unified",
-                    showlegend=False # A legenda aqui foi desligada porque os títulos dos subplots já explicam
+                    showlegend=False 
                 )
                 
-                # Ajustando limites e labels de cada eixo Y
                 fig_sep.update_yaxes(title_text="I (µA)", row=1, col=1)
                 fig_sep.update_yaxes(title_text="Tensão (V)", range=[-0.1, 1.2], row=2, col=1)
                 fig_sep.update_yaxes(title_text="Tensão (V)", range=[-0.1, 1.2], row=3, col=1)
