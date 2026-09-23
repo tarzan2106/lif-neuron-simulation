@@ -33,7 +33,7 @@ if 'lista_de_pulsos' not in st.session_state:
 # BARRA LATERAL
 # =====================================================================
 with st.sidebar:
-    st.header("🎛️ Parametrização dos pulsos de corrente de entrada")
+    st.header("🎛️ Parametrização dos pulsos de entrada")
     
     tab_det, tab_estoc = st.tabs(["🎯 Pulsos exatos", "🎲 Pulsos estocásticos"])
     
@@ -55,7 +55,7 @@ with st.sidebar:
                 st.error("Preencha todos os campos!")
 
     with tab_estoc:
-        st.subheader("Gerador de Ruído Biológico")
+        st.subheader("Gerador de pulsos estocásticos")
         n_estoc = st.number_input("Quantidade de pulsos", min_value=1, value=100, step=10, key="n_estoc")
         larg_estoc = st.text_input("Largura (ex: 10n)", value="10n")
         espaco_estoc = st.text_input("Espaçamento médio entre os pulsos (Exponencial) (ex: 50n)", value="50n")
@@ -96,61 +96,60 @@ with st.sidebar:
 # =====================================================================
 # PAINEL PRINCIPAL
 # =====================================================================
-st.title("⚡ Simulação do Neurônio LIF (SkyWater 130nm)")
-st.markdown("Análise da resposta de um neurônio LIF a pulsos de correntes arbitrários na entrada.")
+st.title("⚡ Resposta de um neurônio LIF")
+st.markdown("Análise da resposta de um neurônio LIF sob pulsos de correntes arbitrários na entrada utilizando skywater130 e o ngspice como simulador.")
 
 if not st.session_state.lista_de_pulsos:
-    st.info("👈 Use o painel lateral para configurar e adicionar pulsos ao circuito.")
+    st.info("👈 Use o painel lateral para configurar e adicionar pulsos ao sinal de entrada.")
 else:
-    # --- 1. A Fila de Memória (Tabela) ---
-    st.subheader("🛒 Lista de pulsos")
+    # --- 1 e 2. A Fila de Memória e Gráfico de Preview em Abas ---
+    tab_lista, tab_preview = st.tabs(["🛒 Lista de pulsos de entrada", "📈 Pré-visualização do Sinal de entrada"])
     
-    df_pulsos = pd.DataFrame(st.session_state.lista_de_pulsos)
-    df_pulsos.index += 1 
-    st.dataframe(df_pulsos, use_container_width=True, height=200)
-    
-    col_btn, _ = st.columns([1, 5])
-    with col_btn:
-        if st.button("🗑️ Limpar lista", use_container_width=True):
-            st.session_state.lista_de_pulsos.clear()
-            st.rerun()
+    with tab_lista:
+        df_pulsos = pd.DataFrame(st.session_state.lista_de_pulsos)
+        df_pulsos.index += 1 
+        st.dataframe(df_pulsos, use_container_width=True, height=200)
+        
+        col_btn, _ = st.columns([1, 5])
+        with col_btn:
+            if st.button("🗑️ Limpar lista", use_container_width=True):
+                st.session_state.lista_de_pulsos.clear()
+                st.rerun()
+                
+    with tab_preview:
+        prev_t = [0.0]
+        prev_y = [0.0]
+        t_abs = 0.0
+        t_rise = 1e-12
+        
+        for p in st.session_state.lista_de_pulsos:
+            amp = spice_to_float(p["Amplitude"]) * 1e6 
+            largura = spice_to_float(p["Largura"])
+            atraso = spice_to_float(p["Espaçamento"])
             
-    # --- 2. O Gráfico de Preview (Logo abaixo da lista) ---
-    st.markdown("### 📈 Pré-visualização do Sinal")
-    
-    prev_t = [0.0]
-    prev_y = [0.0]
-    t_abs = 0.0
-    t_rise = 1e-12
-    
-    for p in st.session_state.lista_de_pulsos:
-        amp = spice_to_float(p["Amplitude"]) * 1e6 
-        largura = spice_to_float(p["Largura"])
-        atraso = spice_to_float(p["Espaçamento"])
+            t0 = t_abs + atraso
+            t1 = t0 + t_rise
+            t2 = t1 + largura
+            t3 = t2 + t_rise
+            
+            prev_t.extend([t0 * 1e6, t1 * 1e6, t2 * 1e6, t3 * 1e6]) 
+            prev_y.extend([0.0, amp, amp, 0.0])
+            
+            t_abs = t3
+            
+        prev_t.append((t_abs + 10e-9) * 1e6)
+        prev_y.append(0.0)
         
-        t0 = t_abs + atraso
-        t1 = t0 + t_rise
-        t2 = t1 + largura
-        t3 = t2 + t_rise
-        
-        prev_t.extend([t0 * 1e6, t1 * 1e6, t2 * 1e6, t3 * 1e6]) 
-        prev_y.extend([0.0, amp, amp, 0.0])
-        
-        t_abs = t3
-        
-    prev_t.append((t_abs + 10e-9) * 1e6)
-    prev_y.append(0.0)
-    
-    fig_preview = go.Figure()
-    fig_preview.add_trace(go.Scatter(x=prev_t, y=prev_y, mode='lines', line=dict(color='dodgerblue', width=2), fill='tozeroy'))
-    fig_preview.update_layout(
-        xaxis_title="Tempo (µs)",
-        yaxis_title="Amplitude (µA)",
-        height=350,
-        margin=dict(l=0, r=0, t=30, b=0),
-        hovermode="x unified"
-    )
-    st.plotly_chart(fig_preview, use_container_width=True)
+        fig_preview = go.Figure()
+        fig_preview.add_trace(go.Scatter(x=prev_t, y=prev_y, mode='lines', line=dict(color='dodgerblue', width=2), fill='tozeroy'))
+        fig_preview.update_layout(
+            xaxis_title="Tempo (µs)",
+            yaxis_title="Amplitude (µA)",
+            height=350,
+            margin=dict(l=0, r=0, t=30, b=0),
+            hovermode="x unified"
+        )
+        st.plotly_chart(fig_preview, use_container_width=True)
 
     # --- 3. O Cérebro do SPICE e Botão de Execução ---
     st.divider()
@@ -183,8 +182,9 @@ else:
                 t_absoluto = t3
 
             tempo_total = t_absoluto + 50e-9 
-            passo_sim = min(menor_largura / 5.0, 1e-9)
-            if passo_sim > menor_largura / 2.0: passo_sim = menor_largura / 2.0
+            
+            # Aumento da resolução da simulação para suavizar o gráfico (redução severa do timestep)
+            passo_sim = min(menor_largura / 50.0, 1e-10)
 
             pwl_linhas = []
             for i in range(0, len(pwl_pontos), 4):
