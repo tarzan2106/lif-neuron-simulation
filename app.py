@@ -96,7 +96,7 @@ with st.sidebar:
 # =====================================================================
 # PAINEL PRINCIPAL
 # =====================================================================
-st.title("⚡ Resposta de um neurônio LIF")
+st.title("⚡ Simulação e Resposta de um neurônio LIF")
 st.markdown("Análise da resposta de um neurônio LIF sob pulsos de correntes arbitrários na entrada utilizando skywater130 e o ngspice como simulador.")
 
 if not st.session_state.lista_de_pulsos:
@@ -155,7 +155,7 @@ else:
     st.divider()
     
     if st.button("🚀 RODAR SIMULAÇÃO", type="primary", use_container_width=True):
-        with st.spinner('A compilar a Netlist e a resolver matrizes SPICE (130nm)...'):
+        with st.spinner('Compilando a Netlist e simulando o circuito...'):
             
             pwl_pontos = ["0 0"]
             t_absoluto = 0.0
@@ -264,7 +264,7 @@ quit
                 st.error("Falha ao ler os dados do SPICE.")
                 st.stop()
 
-            st.success(f"Simulação concluída! [{len(st.session_state.lista_de_pulsos)}] pulsos de entrada processados.")
+            st.success(f"Simulação concluída! {len(st.session_state.lista_de_pulsos)} pulsos de entrada processados.")
             
             tab_separado, tab_junto = st.tabs(["📊 Resposta", "📉 Resposta (gráfico único)"])
             
