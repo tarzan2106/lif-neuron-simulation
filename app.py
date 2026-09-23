@@ -44,7 +44,6 @@ with st.sidebar:
         larg_det = st.text_input("Largura (ex: 10n)", value="10n", key="larg_det")
         atraso_det = st.text_input("Espaçamento entre os pulsos (ex: 5n)", value="5n", key="atraso_det")
         
-        # Adicionado type="primary" para deixar o botão vermelho/destacado
         if st.button("➕ Adicionar pulsos ao sinal de entrada", key="btn_add_exato", use_container_width=True, type="primary"):
             if amp_det and larg_det and atraso_det:
                 for _ in range(n_det):
@@ -97,104 +96,145 @@ with st.sidebar:
 # =====================================================================
 # PAINEL PRINCIPAL
 # =====================================================================
-st.title("⚡ Simulação e Resposta de um neurônio LIF")
+st.title("⚡ Resposta de um neurônio LIF")
 st.markdown("Análise da resposta de um neurônio LIF sob pulsos de correntes arbitrários na entrada utilizando skywater130 e o ngspice como simulador.")
 
-if not st.session_state.lista_de_pulsos:
-    st.info("👈 Use o painel lateral para configurar e adicionar pulsos ao sinal de entrada.")
-else:
-    # --- 1 e 2. A Fila de Memória e Gráfico de Preview em Abas ---
-    tab_lista, tab_preview = st.tabs(["🛒 Lista de pulsos de entrada", "📈 Pré-visualização do Sinal de entrada"])
-    
-    with tab_lista:
-        df_pulsos = pd.DataFrame(st.session_state.lista_de_pulsos)
-        df_pulsos.index += 1 
-        st.dataframe(df_pulsos, use_container_width=True, height=200)
-        
-        col_btn, _ = st.columns([1, 5])
-        with col_btn:
-            if st.button("🗑️ Limpar lista", use_container_width=True):
-                st.session_state.lista_de_pulsos.clear()
-                st.rerun()
-                
-    with tab_preview:
-        prev_t = [0.0]
-        prev_y = [0.0]
-        t_abs = 0.0
-        t_rise = 1e-12
-        
-        for p in st.session_state.lista_de_pulsos:
-            amp = spice_to_float(p["Amplitude"]) * 1e6 
-            largura = spice_to_float(p["Largura"])
-            atraso = spice_to_float(p["Espaçamento"])
-            
-            t0 = t_abs + atraso
-            t1 = t0 + t_rise
-            t2 = t1 + largura
-            t3 = t2 + t_rise
-            
-            prev_t.extend([t0 * 1e6, t1 * 1e6, t2 * 1e6, t3 * 1e6]) 
-            prev_y.extend([0.0, amp, amp, 0.0])
-            
-            t_abs = t3
-            
-        prev_t.append((t_abs + 10e-9) * 1e6)
-        prev_y.append(0.0)
-        
-        fig_preview = go.Figure()
-        fig_preview.add_trace(go.Scatter(x=prev_t, y=prev_y, mode='lines', line=dict(color='dodgerblue', width=2), fill='tozeroy'))
-        fig_preview.update_layout(
-            xaxis_title="Tempo (µs)",
-            yaxis_title="Amplitude (µA)",
-            height=350,
-            margin=dict(l=0, r=0, t=30, b=0),
-            hovermode="x unified"
-        )
-        st.plotly_chart(fig_preview, use_container_width=True)
+# Criação das Abas Principais da Aplicação
+aba_simulador, aba_esquematico = st.tabs(["🚀 Simulador", "📐 Esquemático e Parâmetros"])
 
-    # --- 3. O Cérebro do SPICE e Botão de Execução ---
-    st.divider()
+# ---------------------------------------------------------------------
+# ABA 2: ESQUEMÁTICO E PARÂMETROS (DOCUMENTAÇÃO)
+# ---------------------------------------------------------------------
+with aba_esquematico:
+    st.header("Arquitetura do Neurônio LIF")
+    st.markdown("""
+    O circuito implementado é um neurônio analógico **Leaky Integrate-and-Fire (LIF)**. A corrente injetada na entrada carrega uma capacitância de membrana, que sofre um descarregamento contínuo (vazamento/leak). Quando a tensão da membrana atinge o limiar projetado do *Schmitt Trigger*, o circuito dispara um pico de tensão (*spike*) na saída e aciona uma malha de feedback que reseta a tensão da membrana para o estado de repouso.
+    """)
     
-    if st.button("🚀 RODAR SIMULAÇÃO", type="primary", use_container_width=True):
-        with st.spinner('Compilando a Netlist e simulando o circuito...'):
-            
-            pwl_pontos = ["0 0"]
-            t_absoluto = 0.0
-            t_rise = 1e-12 
-            menor_largura = float('inf')
+    st.subheader("⚙️ Valores dos Componentes e Tensões")
+    st.markdown("""
+    | Componente / Sinal | Valor Físico | Descrição Funcional |
+    | :--- | :--- | :--- |
+    | **C_mem** | `300 fF` | Capacitor principal de integração da membrana. |
+    | **C_load** | `5 fF` | **Capacitância parasita de carga na saída** (fio e *gate* subsequente). |
+    | **VDD** | `1.0 V` | Tensão de alimentação principal do chip. |
+    | **V_leak** | `0.5 V` | Tensão de controle analógico da taxa de vazamento da membrana. |
+    | **V_width** | `0.9 V` | Tensão de controle da largura do *spike* e velocidade do reset. |
+    """)
 
+    st.subheader("📏 Dimensionamento dos Transistores (SkyWater 130nm)")
+    st.markdown("""
+    Todos os transistores do esquemático utilizam as bibliotecas padrão do PDK: `sky130_fd_pr__nfet_01v8` (NMOS) e `sky130_fd_pr__pfet_01v8` (PMOS). Para o modelo didático atual, o dimensionamento foi uniformizado.
+
+    - **Largura do Canal (W):** `10.0 µm`
+    - **Comprimento do Canal (L):** `0.15 µm`
+    
+    **Blocos constituintes no silício:**
+    1. **Transistor de Leak (NMOS):** Escoa a carga térmica e elétrica do nó da membrana para o terra (GND).
+    2. **Schmitt Trigger:** Bloco comparador composto por 6 transistores cruzados para definir a histerese do limiar de disparo.
+    3. **Inversores de Formatação:** Formatam a saída e acionam o *gate* de reset (2 PMOS e 2 NMOS).
+    4. **Transistor de Reset (NMOS):** Entra em condução no pico do *spike*, aterrando violentamente a membrana para encerrar o ciclo.
+    """)
+
+# ---------------------------------------------------------------------
+# ABA 1: SIMULADOR EDA
+# ---------------------------------------------------------------------
+with aba_simulador:
+    if not st.session_state.lista_de_pulsos:
+        st.info("👈 Use o painel lateral para configurar e adicionar pulsos ao sinal de entrada.")
+    else:
+        # --- A Fila de Memória e Gráfico de Preview em Abas ---
+        tab_lista, tab_preview = st.tabs(["🛒 Lista de pulsos de entrada", "📈 Pré-visualização do Sinal de entrada"])
+        
+        with tab_lista:
+            df_pulsos = pd.DataFrame(st.session_state.lista_de_pulsos)
+            df_pulsos.index += 1 
+            st.dataframe(df_pulsos, use_container_width=True, height=200)
+            
+            col_btn, _ = st.columns([1, 5])
+            with col_btn:
+                if st.button("🗑️ Limpar lista", use_container_width=True):
+                    st.session_state.lista_de_pulsos.clear()
+                    st.rerun()
+                    
+        with tab_preview:
+            prev_t = [0.0]
+            prev_y = [0.0]
+            t_abs = 0.0
+            t_rise = 1e-12
+            
             for p in st.session_state.lista_de_pulsos:
-                amp = spice_to_float(p["Amplitude"])
+                amp = spice_to_float(p["Amplitude"]) * 1e6 
                 largura = spice_to_float(p["Largura"])
                 atraso = spice_to_float(p["Espaçamento"])
                 
-                if largura < menor_largura: menor_largura = largura
-
-                t0 = t_absoluto + atraso
+                t0 = t_abs + atraso
                 t1 = t0 + t_rise
                 t2 = t1 + largura
                 t3 = t2 + t_rise
-
-                pwl_pontos.append(f"{t0:.12e} 0")
-                pwl_pontos.append(f"{t1:.12e} {amp}")
-                pwl_pontos.append(f"{t2:.12e} {amp}")
-                pwl_pontos.append(f"{t3:.12e} 0")
                 
-                t_absoluto = t3
-
-            tempo_total = t_absoluto + 50e-9 
+                prev_t.extend([t0 * 1e6, t1 * 1e6, t2 * 1e6, t3 * 1e6]) 
+                prev_y.extend([0.0, amp, amp, 0.0])
+                
+                t_abs = t3
+                
+            prev_t.append((t_abs + 10e-9) * 1e6)
+            prev_y.append(0.0)
             
-            passo_sim = min(menor_largura / 50.0, 1e-10)
+            fig_preview = go.Figure()
+            fig_preview.add_trace(go.Scatter(x=prev_t, y=prev_y, mode='lines', line=dict(color='dodgerblue', width=2), fill='tozeroy'))
+            fig_preview.update_layout(
+                xaxis_title="Tempo (µs)",
+                yaxis_title="Amplitude (µA)",
+                height=350,
+                margin=dict(l=0, r=0, t=30, b=0),
+                hovermode="x unified"
+            )
+            st.plotly_chart(fig_preview, use_container_width=True)
 
-            pwl_linhas = []
-            for i in range(0, len(pwl_pontos), 4):
-                pwl_linhas.append(" ".join(pwl_pontos[i:i+4]))
-            pwl_string = "\n+ ".join(pwl_linhas)
+        # --- O Cérebro do SPICE e Botão de Execução ---
+        st.divider()
+        
+        if st.button("🚀 RODAR SIMULAÇÃO", type="primary", use_container_width=True):
+            with st.spinner('Compilando a Netlist e simulando o circuito...'):
+                
+                pwl_pontos = ["0 0"]
+                t_absoluto = 0.0
+                t_rise = 1e-12 
+                menor_largura = float('inf')
 
-            pdk_path = "PDKs/sky130_fd_pr/models/corners/tt_lite.spice"
-            c_mem = "300f"
-            
-            netlist_content = f"""* SNN: LIF - Tool Web App
+                for p in st.session_state.lista_de_pulsos:
+                    amp = spice_to_float(p["Amplitude"])
+                    largura = spice_to_float(p["Largura"])
+                    atraso = spice_to_float(p["Espaçamento"])
+                    
+                    if largura < menor_largura: menor_largura = largura
+
+                    t0 = t_absoluto + atraso
+                    t1 = t0 + t_rise
+                    t2 = t1 + largura
+                    t3 = t2 + t_rise
+
+                    pwl_pontos.append(f"{t0:.12e} 0")
+                    pwl_pontos.append(f"{t1:.12e} {amp}")
+                    pwl_pontos.append(f"{t2:.12e} {amp}")
+                    pwl_pontos.append(f"{t3:.12e} 0")
+                    
+                    t_absoluto = t3
+
+                tempo_total = t_absoluto + 50e-9 
+                
+                passo_sim = min(menor_largura / 50.0, 1e-10)
+
+                pwl_linhas = []
+                for i in range(0, len(pwl_pontos), 4):
+                    pwl_linhas.append(" ".join(pwl_pontos[i:i+4]))
+                pwl_string = "\n+ ".join(pwl_linhas)
+
+                pdk_path = "PDKs/sky130_fd_pr/models/corners/tt_lite.spice"
+                c_mem = "300f"
+                
+                netlist_content = f"""* SNN: LIF - Tool Web App
 
 .include {pdk_path}
 
@@ -229,6 +269,9 @@ I_in 0 no_fonte PWL({pwl_string})
 V_amperimetro no_fonte in_node 0V
 X_MEU_LIF in_node out_node vdd_node 0 vlk_node vwidth_node NEURONIO_LIF
 
+* Capacitancia parasita de carga na saida (Realismo físico do roteamento/gates)
+C_load out_node 0 5f
+
 .control
 tran {passo_sim:.6e} {tempo_total:.6e}
 wrdata workspace/dados_gui.txt i(V_amperimetro) v(in_node) v(out_node)
@@ -236,88 +279,87 @@ quit
 .endc
 .end
 """
-            workspace_dir = "workspace"
-            os.makedirs(workspace_dir, exist_ok=True)
-            netlist_path = os.path.join(workspace_dir, "neuronio_gui.cir")
-            data_path = os.path.join(workspace_dir, "dados_gui.txt")
+                workspace_dir = "workspace"
+                os.makedirs(workspace_dir, exist_ok=True)
+                netlist_path = os.path.join(workspace_dir, "neuronio_gui.cir")
+                data_path = os.path.join(workspace_dir, "dados_gui.txt")
 
-            with open(netlist_path, "w") as file:
-                file.write(netlist_content)
+                with open(netlist_path, "w") as file:
+                    file.write(netlist_content)
 
-            try:
-                subprocess.run(["ngspice", "-b", netlist_path], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except FileNotFoundError:
-                st.error("Erro: O NGSpice não foi encontrado no PATH do sistema.")
-                st.stop()
+                try:
+                    subprocess.run(["ngspice", "-b", netlist_path], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except FileNotFoundError:
+                    st.error("Erro: O NGSpice não foi encontrado no PATH do sistema.")
+                    st.stop()
 
-            tempos_us, i_entrada, v_membrana, v_saida = [], [], [], []
-            try:
-                with open(data_path, "r") as f:
-                    for linha in f:
-                        if not linha.strip(): continue
-                        colunas = [float(val) for val in linha.split()]
-                        tempos_us.append(colunas[0] * 1e6) 
-                        i_entrada.append(colunas[1] * 1e6) 
-                        v_membrana.append(colunas[3])
-                        v_saida.append(colunas[5])
-            except FileNotFoundError:
-                st.error("Falha ao ler os dados do SPICE.")
-                st.stop()
+                tempos_us, i_entrada, v_membrana, v_saida = [], [], [], []
+                try:
+                    with open(data_path, "r") as f:
+                        for linha in f:
+                            if not linha.strip(): continue
+                            colunas = [float(val) for val in linha.split()]
+                            tempos_us.append(colunas[0] * 1e6) 
+                            i_entrada.append(colunas[1] * 1e6) 
+                            v_membrana.append(colunas[3])
+                            v_saida.append(colunas[5])
+                except FileNotFoundError:
+                    st.error("Falha ao ler os dados do SPICE.")
+                    st.stop()
 
-            st.success(f"Simulação concluída! {len(st.session_state.lista_de_pulsos)} pulsos de entrada processados.")
-            
-            # Emojis padronizados para as abas dos gráficos
-            tab_separado, tab_junto = st.tabs(["📈 Resposta", "📈 Resposta (gráfico único)"])
-            
-            with tab_separado:
-                fig_sep = make_subplots(
-                    rows=3, cols=1, 
-                    shared_xaxes=True, 
-                    vertical_spacing=0.08,
-                    subplot_titles=("Corrente de Entrada", "Tensão de Membrana", "Spike de Saída")
-                )
+                st.success(f"Simulação concluída! {len(st.session_state.lista_de_pulsos)} pulsos de entrada processados.")
                 
-                fig_sep.add_trace(go.Scatter(x=tempos_us, y=i_entrada, mode='lines', name='Corrente (µA)',
-                                         line=dict(color='dodgerblue', width=2)), row=1, col=1)
-                fig_sep.add_trace(go.Scatter(x=tempos_us, y=v_membrana, mode='lines', name='Vm (V)',
-                                         line=dict(color='orange', width=2)), row=2, col=1)
-                fig_sep.add_trace(go.Scatter(x=tempos_us, y=v_saida, mode='lines', name='Spike (V)',
-                                         line=dict(color='green', width=2)), row=3, col=1)
+                tab_separado, tab_junto = st.tabs(["📈 Resposta", "📈 Resposta (gráfico único)"])
                 
-                fig_sep.update_layout(
-                    height=700, 
-                    hovermode="x unified",
-                    showlegend=False 
-                )
-                
-                fig_sep.update_yaxes(title_text="I (µA)", row=1, col=1)
-                fig_sep.update_yaxes(title_text="Tensão (V)", range=[-0.1, 1.2], row=2, col=1)
-                fig_sep.update_yaxes(title_text="Tensão (V)", range=[-0.1, 1.2], row=3, col=1)
-                
-                fig_sep.update_xaxes(title_text="Tempo (µs)", row=3, col=1)
-                
-                st.plotly_chart(fig_sep, use_container_width=True)
+                with tab_separado:
+                    fig_sep = make_subplots(
+                        rows=3, cols=1, 
+                        shared_xaxes=True, 
+                        vertical_spacing=0.08,
+                        subplot_titles=("Corrente de Entrada", "Tensão de Membrana", "Spike de Saída")
+                    )
+                    
+                    fig_sep.add_trace(go.Scatter(x=tempos_us, y=i_entrada, mode='lines', name='Corrente (µA)',
+                                             line=dict(color='dodgerblue', width=2)), row=1, col=1)
+                    fig_sep.add_trace(go.Scatter(x=tempos_us, y=v_membrana, mode='lines', name='Vm (V)',
+                                             line=dict(color='orange', width=2)), row=2, col=1)
+                    fig_sep.add_trace(go.Scatter(x=tempos_us, y=v_saida, mode='lines', name='Spike (V)',
+                                             line=dict(color='green', width=2)), row=3, col=1)
+                    
+                    fig_sep.update_layout(
+                        height=700, 
+                        hovermode="x unified",
+                        showlegend=False 
+                    )
+                    
+                    fig_sep.update_yaxes(title_text="I (µA)", row=1, col=1)
+                    fig_sep.update_yaxes(title_text="Tensão (V)", range=[-0.1, 1.2], row=2, col=1)
+                    fig_sep.update_yaxes(title_text="Tensão (V)", range=[-0.1, 1.2], row=3, col=1)
+                    
+                    fig_sep.update_xaxes(title_text="Tempo (µs)", row=3, col=1)
+                    
+                    st.plotly_chart(fig_sep, use_container_width=True)
 
-            with tab_junto:
-                fig_junto = make_subplots(specs=[[{"secondary_y": True}]])
+                with tab_junto:
+                    fig_junto = make_subplots(specs=[[{"secondary_y": True}]])
 
-                fig_junto.add_trace(go.Scatter(x=tempos_us, y=v_membrana, mode='lines', name='Vm (V)',
-                                         line=dict(color='orange', width=2)), secondary_y=False)
-                
-                fig_junto.add_trace(go.Scatter(x=tempos_us, y=v_saida, mode='lines', name='Spike (V)',
-                                         line=dict(color='green', width=2)), secondary_y=False)
-                
-                fig_junto.add_trace(go.Scatter(x=tempos_us, y=i_entrada, mode='lines', name='Corrente (µA)',
-                                         line=dict(color='dodgerblue', width=2), opacity=0.6), secondary_y=True)
+                    fig_junto.add_trace(go.Scatter(x=tempos_us, y=v_membrana, mode='lines', name='Vm (V)',
+                                             line=dict(color='orange', width=2)), secondary_y=False)
+                    
+                    fig_junto.add_trace(go.Scatter(x=tempos_us, y=v_saida, mode='lines', name='Spike (V)',
+                                             line=dict(color='green', width=2)), secondary_y=False)
+                    
+                    fig_junto.add_trace(go.Scatter(x=tempos_us, y=i_entrada, mode='lines', name='Corrente (µA)',
+                                             line=dict(color='dodgerblue', width=2), opacity=0.6), secondary_y=True)
 
-                fig_junto.update_layout(
-                    xaxis_title="Tempo (µs)",
-                    hovermode="x unified",
-                    height=500,
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                )
+                    fig_junto.update_layout(
+                        xaxis_title="Tempo (µs)",
+                        hovermode="x unified",
+                        height=500,
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                    )
 
-                fig_junto.update_yaxes(title_text="Tensão (V)", range=[-0.1, 1.2], secondary_y=False)
-                fig_junto.update_yaxes(title_text="Corrente (µA)", secondary_y=True)
+                    fig_junto.update_yaxes(title_text="Tensão (V)", range=[-0.1, 1.2], secondary_y=False)
+                    fig_junto.update_yaxes(title_text="Corrente (µA)", secondary_y=True)
 
-                st.plotly_chart(fig_junto, use_container_width=True)
+                    st.plotly_chart(fig_junto, use_container_width=True)
