@@ -1,0 +1,15 @@
+* SKY130 Spice File - LITE VERSION (Canto SS: Slow-Slow)
+* Otimizado para o projeto do Schmitt Trigger
+
+* 1. OS ÚNICOS TRANSISTORES QUE VOCÊ USA (1.8V Standard)
+.include "../../cells/nfet_01v8/sky130_fd_pr__nfet_01v8__ss.pm3.spice"
+.include "../../cells/nfet_01v8/sky130_fd_pr__nfet_01v8__mismatch.corner.spice"
+.include "../../cells/pfet_01v8/sky130_fd_pr__pfet_01v8__ss.corner.spice"
+.include "../../cells/pfet_01v8/sky130_fd_pr__pfet_01v8__mismatch.corner.spice"
+
+* 2. ARQUIVOS GLOBAIS DE PARÂMETROS (Necessários para a física compilar)
+.include "ss/nonfet.spice"
+.include "../all.spice"
+
+* --- FIM DO ARQUIVO ---
+* (Todos os lvt, hvt, 3v3, 5v0, 20v0, esd e rf foram removidos)
