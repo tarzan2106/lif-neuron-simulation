@@ -29,13 +29,24 @@ def spice_to_float(valor_str):
 if 'lista_de_pulsos' not in st.session_state:
     st.session_state.lista_de_pulsos = []
 
-# Valores default com base no SkyWater 130nm (Standard 1.8V devices)
+# Valores default com base no SkyWater 130nm
 defaults = {
     'c_mem': '300f', 'c_load': '50f',
-    'v_dd': 1.0, 'v_leak': 0.5, 'v_width': 0.9,
-    'w_logica': 10.0, 'l_logica': 0.15,
-    'w_leak': 10.0, 'l_leak': 0.15,
-    'w_reset': 10.0, 'l_reset': 0.15
+    'v_dd': 1.0, 'v_lk': 0.5, 'v_width': 0.9,
+    # Schmitt Trigger PMOS
+    'w_st_m5': 10.0, 'l_st_m5': 0.15,
+    'w_st_m4': 10.0, 'l_st_m4': 0.15,
+    'w_st_m6': 10.0, 'l_st_m6': 0.15,
+    # Schmitt Trigger NMOS
+    'w_st_m2': 10.0, 'l_st_m2': 0.15,
+    'w_st_m1': 10.0, 'l_st_m1': 0.15,
+    'w_st_m3': 10.0, 'l_st_m3': 0.15,
+    # Inversores U1 e U2
+    'w_inv_p': 10.0, 'l_inv_p': 0.15,
+    'w_inv_n': 10.0, 'l_inv_n': 0.15,
+    # Controle da Membrana
+    'w_m1_lk': 10.0, 'l_m1_lk': 0.15,
+    'w_m2_rst': 10.0, 'l_m2_rst': 0.15
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -117,34 +128,89 @@ aba_simulador, aba_dimensionamento = st.tabs(["🚀 Simulador", "📐 Dimensiona
 # ABA 2: DIMENSIONAMENTO 
 # ---------------------------------------------------------------------
 with aba_dimensionamento:
-    st.subheader("Capacitâncias")
-    col_cap1, col_cap2 = st.columns(2)
-    col_cap1.text_input("C_mem (Capacitor de membrana)", key="c_mem")
-    col_cap2.text_input("C_load (Capacitor de carga na saída)", key="c_load")
+    col_params, col_esq = st.columns([1, 1.3])
     
-    st.subheader("Tensões de Referência [Max: 1.8V]")
-    c1, c2, c3 = st.columns(3)
-    c1.number_input("VDD (Tensão de alimentação)", min_value=0.0, max_value=1.8, step=0.1, key="v_dd")
-    c2.number_input("V_leak (Tensão de vazamento)", min_value=0.0, max_value=1.8, step=0.1, key="v_leak")
-    c3.number_input("V_width (Tensão de controle da largura do spike)", min_value=0.0, max_value=1.8, step=0.1, key="v_width")
-    
-    st.subheader("Dimensionamento dos Transistores (SkyWater 130nm)")
-    st.markdown("*Limites Físicos de Fabricação: L mínimo = 0.15µm | W mínimo = 0.42µm*")
-    
-    st.markdown("**Portas Lógicas (Schmitt Trigger e Inversores)**")
-    l1, l2 = st.columns(2)
-    l1.number_input("Largura (W) µm", min_value=0.42, max_value=100.0, step=0.5, key="w_logica")
-    l2.number_input("Comprimento (L) µm", min_value=0.15, max_value=20.0, step=0.05, key="l_logica")
-    
-    st.markdown("**Transistor de Vazamento (Leak NMOS)**")
-    l3, l4 = st.columns(2)
-    l3.number_input("Largura (W) µm", min_value=0.42, max_value=100.0, step=0.5, key="w_leak")
-    l4.number_input("Comprimento (L) µm", min_value=0.15, max_value=20.0, step=0.05, key="l_leak")
-    
-    st.markdown("**Transistor de Reset (NMOS)**")
-    l5, l6 = st.columns(2)
-    l5.number_input("Largura (W) µm", min_value=0.42, max_value=100.0, step=0.5, key="w_reset")
-    l6.number_input("Comprimento (L) µm", min_value=0.15, max_value=20.0, step=0.05, key="l_reset")
+    with col_params:
+        st.subheader("Componentes Passivos")
+        cp1, cp2 = st.columns(2)
+        cp1.text_input("C_mem", key="c_mem")
+        cp2.text_input("C_load", key="c_load")
+        
+        st.subheader("Tensões [Max: 1.8V]")
+        t1, t2, t3 = st.columns(3)
+        t1.number_input("VDD", min_value=0.0, max_value=1.8, step=0.1, key="v_dd")
+        t2.number_input("V_lk", min_value=0.0, max_value=1.8, step=0.1, key="v_lk")
+        t3.number_input("V_width", min_value=0.0, max_value=1.8, step=0.1, key="v_width")
+        
+        st.subheader("Dimensionamento (SkyWater 130nm)")
+        
+        with st.expander("Schmitt Trigger (M1 a M6)", expanded=True):
+            st.markdown("**PMOS**")
+            p1, p2, p3 = st.columns(3)
+            p1.number_input("M5 (W)", min_value=0.42, step=0.1, key="w_st_m5")
+            p1.number_input("M5 (L)", min_value=0.15, step=0.05, key="l_st_m5")
+            p2.number_input("M4 (W)", min_value=0.42, step=0.1, key="w_st_m4")
+            p2.number_input("M4 (L)", min_value=0.15, step=0.05, key="l_st_m4")
+            p3.number_input("M6 (W)", min_value=0.42, step=0.1, key="w_st_m6")
+            p3.number_input("M6 (L)", min_value=0.15, step=0.05, key="l_st_m6")
+            
+            st.markdown("**NMOS**")
+            n1, n2, n3 = st.columns(3)
+            n1.number_input("M2 (W)", min_value=0.42, step=0.1, key="w_st_m2")
+            n1.number_input("M2 (L)", min_value=0.15, step=0.05, key="l_st_m2")
+            n2.number_input("M1 (W)", min_value=0.42, step=0.1, key="w_st_m1")
+            n2.number_input("M1 (L)", min_value=0.15, step=0.05, key="l_st_m1")
+            n3.number_input("M3 (W)", min_value=0.42, step=0.1, key="w_st_m3")
+            n3.number_input("M3 (L)", min_value=0.15, step=0.05, key="l_st_m3")
+
+        with st.expander("Inversores (U1 e U2)"):
+            c_inv1, c_inv2 = st.columns(2)
+            c_inv1.number_input("PMOS (W)", min_value=0.42, step=0.1, key="w_inv_p")
+            c_inv1.number_input("PMOS (L)", min_value=0.15, step=0.05, key="l_inv_p")
+            c_inv2.number_input("NMOS (W)", min_value=0.42, step=0.1, key="w_inv_n")
+            c_inv2.number_input("NMOS (L)", min_value=0.15, step=0.05, key="l_inv_n")
+            
+        with st.expander("Controle da Membrana (NMOS)"):
+            c_ctrl1, c_ctrl2 = st.columns(2)
+            c_ctrl1.number_input("M1 Leak (W)", min_value=0.42, step=0.1, key="w_m1_lk")
+            c_ctrl1.number_input("M1 Leak (L)", min_value=0.15, step=0.05, key="l_m1_lk")
+            c_ctrl2.number_input("M2 Reset (W)", min_value=0.42, step=0.1, key="w_m2_rst")
+            c_ctrl2.number_input("M2 Reset (L)", min_value=0.15, step=0.05, key="l_m2_rst")
+
+    with col_esq:
+        st.subheader("Esquemático Parametrizado")
+        md_ticks = "```"
+        st.markdown(f"""
+{md_ticks}mermaid
+graph TD
+    In((I_in)) --> Vm((V_m))
+
+    Vm --- C_m[C_m: {st.session_state.c_mem}]
+    Vm --- M1_L[M1 Leak NMOS<br>W={st.session_state.w_m1_lk}µ / L={st.session_state.l_m1_lk}µ]
+    Vm --- M2_R[M2 Reset NMOS<br>W={st.session_state.w_m2_rst}µ / L={st.session_state.l_m2_rst}µ]
+
+    Vm --> ST
+
+    subgraph ST [Schmitt Trigger]
+        direction TB
+        M5[M5 PMOS: W={st.session_state.w_st_m5} / L={st.session_state.l_st_m5}]
+        M4[M4 PMOS: W={st.session_state.w_st_m4} / L={st.session_state.l_st_m4}]
+        M6[M6 PMOS: W={st.session_state.w_st_m6} / L={st.session_state.l_st_m6}]
+        M2_ST[M2 NMOS: W={st.session_state.w_st_m2} / L={st.session_state.l_st_m2}]
+        M1_ST[M1 NMOS: W={st.session_state.w_st_m1} / L={st.session_state.l_st_m1}]
+        M3[M3 NMOS: W={st.session_state.w_st_m3} / L={st.session_state.l_st_m3}]
+    end
+
+    ST --> Vo((V_o))
+
+    Vo --> U1>U1 Inversor<br>PMOS: W={st.session_state.w_inv_p} / L={st.session_state.l_inv_p}<br>NMOS: W={st.session_state.w_inv_n} / L={st.session_state.l_inv_n}]
+    Vo --> U2>U2 Inversor<br>PMOS: W={st.session_state.w_inv_p} / L={st.session_state.l_inv_p}<br>NMOS: W={st.session_state.w_inv_n} / L={st.session_state.l_inv_n}]
+
+    U1 -.->|Feedback| M2_R
+    U2 --> Out((Spike))
+    Out --- C_load[C_load: {st.session_state.c_load}]
+{md_ticks}
+        """)
 
 # ---------------------------------------------------------------------
 # ABA 1: SIMULADOR EDA
@@ -240,35 +306,36 @@ with aba_simulador:
 
                 pdk_path = "PDKs/sky130_fd_pr/models/corners/tt_lite.spice"
                 
+                # Montagem exata da topologia do Schmitt Trigger baseada nas nomenclaturas
                 netlist_content = f"""* SNN: LIF - Tool Web App
 
 .include {pdk_path}
 
 .subckt MEU_INVERSOR in out vdd gnd
-X_P1 out in vdd vdd sky130_fd_pr__pfet_01v8 W={st.session_state.w_logica} L={st.session_state.l_logica}
-X_N1 out in gnd gnd sky130_fd_pr__nfet_01v8 W={st.session_state.w_logica} L={st.session_state.l_logica}
+X_P1 out in vdd vdd sky130_fd_pr__pfet_01v8 W={st.session_state.w_inv_p} L={st.session_state.l_inv_p}
+X_N1 out in gnd gnd sky130_fd_pr__nfet_01v8 W={st.session_state.w_inv_n} L={st.session_state.l_inv_n}
 .ends MEU_INVERSOR
 
 .subckt MEU_SCHMITT_TRIGGER in out vdd gnd
-X_P1 net_p in vdd vdd sky130_fd_pr__pfet_01v8 W={st.session_state.w_logica} L={st.session_state.l_logica}
-X_P2 out in net_p vdd sky130_fd_pr__pfet_01v8 W={st.session_state.w_logica} L={st.session_state.l_logica}
-X_P3 net_p out gnd vdd sky130_fd_pr__pfet_01v8 W={st.session_state.w_logica} L={st.session_state.l_logica}
-X_N1 out in net_n gnd sky130_fd_pr__nfet_01v8 W={st.session_state.w_logica} L={st.session_state.l_logica}
-X_N2 net_n in gnd gnd sky130_fd_pr__nfet_01v8 W={st.session_state.w_logica} L={st.session_state.l_logica}
-X_N3 net_n out vdd gnd sky130_fd_pr__nfet_01v8 W={st.session_state.w_logica} L={st.session_state.l_logica}
+X_M5 net_p in vdd vdd sky130_fd_pr__pfet_01v8 W={st.session_state.w_st_m5} L={st.session_state.l_st_m5}
+X_M4 out in net_p vdd sky130_fd_pr__pfet_01v8 W={st.session_state.w_st_m4} L={st.session_state.l_st_m4}
+X_M6 gnd out net_p vdd sky130_fd_pr__pfet_01v8 W={st.session_state.w_st_m6} L={st.session_state.l_st_m6}
+X_M2 out in net_n gnd sky130_fd_pr__nfet_01v8 W={st.session_state.w_st_m2} L={st.session_state.l_st_m2}
+X_M1 net_n in gnd gnd sky130_fd_pr__nfet_01v8 W={st.session_state.w_st_m1} L={st.session_state.l_st_m1}
+X_M3 vdd out net_n gnd sky130_fd_pr__nfet_01v8 W={st.session_state.w_st_m3} L={st.session_state.l_st_m3}
 .ends MEU_SCHMITT_TRIGGER
 
 .subckt NEURONIO_LIF in_corrente spike_out vdd gnd vlk vwidth
 C_mem in_corrente gnd {st.session_state.c_mem}
-X_leak in_corrente vlk gnd gnd sky130_fd_pr__nfet_01v8 W={st.session_state.w_leak} L={st.session_state.l_leak}
+X_M1_leak in_corrente vlk gnd gnd sky130_fd_pr__nfet_01v8 W={st.session_state.w_m1_lk} L={st.session_state.l_m1_lk}
 X_ST in_corrente vo_node vdd gnd MEU_SCHMITT_TRIGGER
 X_U2 vo_node spike_out vdd gnd MEU_INVERSOR
 X_U1 vo_node reset_ctrl vwidth gnd MEU_INVERSOR
-X_reset in_corrente reset_ctrl gnd gnd sky130_fd_pr__nfet_01v8 W={st.session_state.w_reset} L={st.session_state.l_reset}
+X_M2_reset in_corrente reset_ctrl gnd gnd sky130_fd_pr__nfet_01v8 W={st.session_state.w_m2_rst} L={st.session_state.l_m2_rst}
 .ends NEURONIO_LIF
 
 V_vdd vdd_node 0 {st.session_state.v_dd}
-V_vlk vlk_node 0 {st.session_state.v_leak}
+V_vlk vlk_node 0 {st.session_state.v_lk}
 V_vwidth vwidth_node 0 {st.session_state.v_width}
 
 I_in 0 no_fonte PWL({pwl_string})
