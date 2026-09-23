@@ -114,59 +114,37 @@ st.markdown("Análise da resposta de um neurônio LIF sob pulsos de correntes ar
 aba_simulador, aba_dimensionamento = st.tabs(["🚀 Simulador", "📐 Dimensionamento"])
 
 # ---------------------------------------------------------------------
-# ABA 2: DIMENSIONAMENTO E ESQUEMÁTICO DINÂMICO
+# ABA 2: DIMENSIONAMENTO 
 # ---------------------------------------------------------------------
 with aba_dimensionamento:
-    col_params, col_esquematico = st.columns([1, 1.2])
+    st.subheader("Capacitâncias")
+    col_cap1, col_cap2 = st.columns(2)
+    col_cap1.text_input("C_mem (Capacitor de membrana)", key="c_mem")
+    col_cap2.text_input("C_load (Capacitor de carga na saída)", key="c_load")
     
-    with col_params:
-        st.subheader("Capacitâncias")
-        st.text_input("C_mem (Integração)", key="c_mem")
-        st.text_input("C_load (Carga Parasita na Saída)", key="c_load")
-        
-        st.subheader("Tensões de Referência [Max: 1.8V]")
-        c1, c2, c3 = st.columns(3)
-        c1.number_input("VDD", min_value=0.0, max_value=1.8, step=0.1, key="v_dd")
-        c2.number_input("V_leak", min_value=0.0, max_value=1.8, step=0.1, key="v_leak")
-        c3.number_input("V_width", min_value=0.0, max_value=1.8, step=0.1, key="v_width")
-        
-        st.subheader("Dimensionamento (SkyWater 130nm)")
-        st.markdown("*Limites Físicos de Fabricação: L mínimo = 0.15µm | W mínimo = 0.42µm*")
-        
-        st.markdown("**1. Portas Lógicas (Schmitt Trigger e Inversores)**")
-        l1, l2 = st.columns(2)
-        l1.number_input("Largura (W) µm", min_value=0.42, max_value=100.0, step=0.5, key="w_logica")
-        l2.number_input("Comprimento (L) µm", min_value=0.15, max_value=20.0, step=0.05, key="l_logica")
-        
-        st.markdown("**2. Transistor de Vazamento (Leak NMOS)**")
-        l3, l4 = st.columns(2)
-        l3.number_input("Largura (W) µm", min_value=0.42, max_value=100.0, step=0.5, key="w_leak")
-        l4.number_input("Comprimento (L) µm", min_value=0.15, max_value=20.0, step=0.05, key="l_leak")
-        
-        st.markdown("**3. Transistor de Reset (NMOS)**")
-        l5, l6 = st.columns(2)
-        l5.number_input("Largura (W) µm", min_value=0.42, max_value=100.0, step=0.5, key="w_reset")
-        l6.number_input("Comprimento (L) µm", min_value=0.15, max_value=20.0, step=0.05, key="l_reset")
-
-    with col_esquematico:
-        st.subheader("Esquemático em Tempo Real")
-        # Estratégia para não quebrar a caixa de código no chat
-        md_ticks = "```"
-        st.markdown(f"""
-{md_ticks}mermaid
-graph TD
-    In((I_in)) --> Mem[Nó da Membrana]
-    Mem --- C_mem[(C_mem: {st.session_state.c_mem})]
-    Mem --- Leak[Leak NMOS<br>W={st.session_state.w_leak}µm / L={st.session_state.l_leak}µm<br>V_gate={st.session_state.v_leak}V]
-    Mem --> ST[Schmitt Trigger<br>W={st.session_state.w_logica}µm / L={st.session_state.l_logica}µm]
-    ST --> U2[Inv Saída<br>W={st.session_state.w_logica}µm / L={st.session_state.l_logica}µm]
-    ST --> U1[Inv Reset<br>W={st.session_state.w_logica}µm / L={st.session_state.l_logica}µm]
-    U1 --> Rst[Reset NMOS<br>W={st.session_state.w_reset}µm / L={st.session_state.l_reset}µm<br>V_lim={st.session_state.v_width}V]
-    Rst -.->|Descarrega| Mem
-    U2 --> Out((Spike Out))
-    Out --- C_load[(C_load: {st.session_state.c_load})]
-{md_ticks}
-        """)
+    st.subheader("Tensões de Referência [Max: 1.8V]")
+    c1, c2, c3 = st.columns(3)
+    c1.number_input("VDD (Tensão de alimentação)", min_value=0.0, max_value=1.8, step=0.1, key="v_dd")
+    c2.number_input("V_leak (Tensão de vazamento)", min_value=0.0, max_value=1.8, step=0.1, key="v_leak")
+    c3.number_input("V_width (Tensão de controle da largura do spike)", min_value=0.0, max_value=1.8, step=0.1, key="v_width")
+    
+    st.subheader("Dimensionamento dos Transistores (SkyWater 130nm)")
+    st.markdown("*Limites Físicos de Fabricação: L mínimo = 0.15µm | W mínimo = 0.42µm*")
+    
+    st.markdown("**Portas Lógicas (Schmitt Trigger e Inversores)**")
+    l1, l2 = st.columns(2)
+    l1.number_input("Largura (W) µm", min_value=0.42, max_value=100.0, step=0.5, key="w_logica")
+    l2.number_input("Comprimento (L) µm", min_value=0.15, max_value=20.0, step=0.05, key="l_logica")
+    
+    st.markdown("**Transistor de Vazamento (Leak NMOS)**")
+    l3, l4 = st.columns(2)
+    l3.number_input("Largura (W) µm", min_value=0.42, max_value=100.0, step=0.5, key="w_leak")
+    l4.number_input("Comprimento (L) µm", min_value=0.15, max_value=20.0, step=0.05, key="l_leak")
+    
+    st.markdown("**Transistor de Reset (NMOS)**")
+    l5, l6 = st.columns(2)
+    l5.number_input("Largura (W) µm", min_value=0.42, max_value=100.0, step=0.5, key="w_reset")
+    l6.number_input("Comprimento (L) µm", min_value=0.15, max_value=20.0, step=0.05, key="l_reset")
 
 # ---------------------------------------------------------------------
 # ABA 1: SIMULADOR EDA
