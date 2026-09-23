@@ -44,7 +44,8 @@ with st.sidebar:
         larg_det = st.text_input("Largura (ex: 10n)", value="10n", key="larg_det")
         atraso_det = st.text_input("Espaçamento entre os pulsos (ex: 5n)", value="5n", key="atraso_det")
         
-        if st.button("➕ Adicionar pulsos ao sinal de entrada", key="btn_add_exato", use_container_width=True):
+        # Adicionado type="primary" para deixar o botão vermelho/destacado
+        if st.button("➕ Adicionar pulsos ao sinal de entrada", key="btn_add_exato", use_container_width=True, type="primary"):
             if amp_det and larg_det and atraso_det:
                 for _ in range(n_det):
                     st.session_state.lista_de_pulsos.append({
@@ -183,7 +184,6 @@ else:
 
             tempo_total = t_absoluto + 50e-9 
             
-            # Aumento da resolução da simulação para suavizar o gráfico (redução severa do timestep)
             passo_sim = min(menor_largura / 50.0, 1e-10)
 
             pwl_linhas = []
@@ -266,7 +266,8 @@ quit
 
             st.success(f"Simulação concluída! {len(st.session_state.lista_de_pulsos)} pulsos de entrada processados.")
             
-            tab_separado, tab_junto = st.tabs(["📊 Resposta", "📉 Resposta (gráfico único)"])
+            # Emojis padronizados para as abas dos gráficos
+            tab_separado, tab_junto = st.tabs(["📈 Resposta", "📈 Resposta (gráfico único)"])
             
             with tab_separado:
                 fig_sep = make_subplots(
