@@ -33,18 +33,14 @@ if 'lista_de_pulsos' not in st.session_state:
 defaults = {
     'c_mem': '300f', 'c_load': '50f',
     'v_dd': 1.0, 'v_lk': 0.5, 'v_width': 0.9,
-    # Schmitt Trigger PMOS
     'w_st_m5': 10.0, 'l_st_m5': 0.15,
     'w_st_m4': 10.0, 'l_st_m4': 0.15,
     'w_st_m6': 10.0, 'l_st_m6': 0.15,
-    # Schmitt Trigger NMOS
     'w_st_m2': 10.0, 'l_st_m2': 0.15,
     'w_st_m1': 10.0, 'l_st_m1': 0.15,
     'w_st_m3': 10.0, 'l_st_m3': 0.15,
-    # Inversores U1 e U2
     'w_inv_p': 10.0, 'l_inv_p': 0.15,
     'w_inv_n': 10.0, 'l_inv_n': 0.15,
-    # Controle da Membrana
     'w_m1_lk': 10.0, 'l_m1_lk': 0.15,
     'w_m2_rst': 10.0, 'l_m2_rst': 0.15
 }
@@ -125,16 +121,23 @@ st.markdown("Análise da resposta de um neurônio LIF sob pulsos de correntes ar
 aba_simulador, aba_dimensionamento = st.tabs(["🚀 Simulador", "📐 Dimensionamento"])
 
 # ---------------------------------------------------------------------
-# ABA 2: DIMENSIONAMENTO 
+# ABA 2: DIMENSIONAMENTO E INSPETOR DE PROPRIEDADES
 # ---------------------------------------------------------------------
 with aba_dimensionamento:
-    col_params, col_esq = st.columns([1, 1.3])
+    col_img, col_params = st.columns([1.3, 1])
     
+    with col_img:
+        st.subheader("Topologia Física")
+        try:
+            st.image("esquematico.png", use_container_width=True)
+        except:
+            st.info("💡 Para visualizar o circuito aqui, faça o upload da imagem do esquemático para a raiz do seu repositório GitHub com o nome exato de 'esquematico.png'.")
+            
     with col_params:
         st.subheader("Componentes Passivos")
         cp1, cp2 = st.columns(2)
-        cp1.text_input("C_mem", key="c_mem")
-        cp2.text_input("C_load", key="c_load")
+        cp1.text_input("C_mem (Integração)", key="c_mem")
+        cp2.text_input("C_load (Carga na saída)", key="c_load")
         
         st.subheader("Tensões [Max: 1.8V]")
         t1, t2, t3 = st.columns(3)
@@ -142,26 +145,27 @@ with aba_dimensionamento:
         t2.number_input("V_lk", min_value=0.0, max_value=1.8, step=0.1, key="v_lk")
         t3.number_input("V_width", min_value=0.0, max_value=1.8, step=0.1, key="v_width")
         
-        st.subheader("Dimensionamento (SkyWater 130nm)")
+        st.subheader("Transistores (SkyWater 130nm)")
+        st.caption("Limites físicos: L = 0.15µm | W = 0.42µm")
         
         with st.expander("Schmitt Trigger (M1 a M6)", expanded=True):
-            st.markdown("**PMOS**")
+            st.markdown("**Rede Pull-Up (PMOS)**")
             p1, p2, p3 = st.columns(3)
-            p1.number_input("M5 (W)", min_value=0.42, step=0.1, key="w_st_m5")
-            p1.number_input("M5 (L)", min_value=0.15, step=0.05, key="l_st_m5")
-            p2.number_input("M4 (W)", min_value=0.42, step=0.1, key="w_st_m4")
-            p2.number_input("M4 (L)", min_value=0.15, step=0.05, key="l_st_m4")
-            p3.number_input("M6 (W)", min_value=0.42, step=0.1, key="w_st_m6")
-            p3.number_input("M6 (L)", min_value=0.15, step=0.05, key="l_st_m6")
+            p1.number_input("M5 W", min_value=0.42, step=0.1, key="w_st_m5")
+            p1.number_input("M5 L", min_value=0.15, step=0.05, key="l_st_m5")
+            p2.number_input("M4 W", min_value=0.42, step=0.1, key="w_st_m4")
+            p2.number_input("M4 L", min_value=0.15, step=0.05, key="l_st_m4")
+            p3.number_input("M6 W", min_value=0.42, step=0.1, key="w_st_m6")
+            p3.number_input("M6 L", min_value=0.15, step=0.05, key="l_st_m6")
             
-            st.markdown("**NMOS**")
+            st.markdown("**Rede Pull-Down (NMOS)**")
             n1, n2, n3 = st.columns(3)
-            n1.number_input("M2 (W)", min_value=0.42, step=0.1, key="w_st_m2")
-            n1.number_input("M2 (L)", min_value=0.15, step=0.05, key="l_st_m2")
-            n2.number_input("M1 (W)", min_value=0.42, step=0.1, key="w_st_m1")
-            n2.number_input("M1 (L)", min_value=0.15, step=0.05, key="l_st_m1")
-            n3.number_input("M3 (W)", min_value=0.42, step=0.1, key="w_st_m3")
-            n3.number_input("M3 (L)", min_value=0.15, step=0.05, key="l_st_m3")
+            n1.number_input("M2 W", min_value=0.42, step=0.1, key="w_st_m2")
+            n1.number_input("M2 L", min_value=0.15, step=0.05, key="l_st_m2")
+            n2.number_input("M1 W", min_value=0.42, step=0.1, key="w_st_m1")
+            n2.number_input("M1 L", min_value=0.15, step=0.05, key="l_st_m1")
+            n3.number_input("M3 W", min_value=0.42, step=0.1, key="w_st_m3")
+            n3.number_input("M3 L", min_value=0.15, step=0.05, key="l_st_m3")
 
         with st.expander("Inversores (U1 e U2)"):
             c_inv1, c_inv2 = st.columns(2)
@@ -176,41 +180,6 @@ with aba_dimensionamento:
             c_ctrl1.number_input("M1 Leak (L)", min_value=0.15, step=0.05, key="l_m1_lk")
             c_ctrl2.number_input("M2 Reset (W)", min_value=0.42, step=0.1, key="w_m2_rst")
             c_ctrl2.number_input("M2 Reset (L)", min_value=0.15, step=0.05, key="l_m2_rst")
-
-    with col_esq:
-        st.subheader("Esquemático Parametrizado")
-        md_ticks = "```"
-        st.markdown(f"""
-{md_ticks}mermaid
-graph TD
-    In((I_in)) --> Vm((V_m))
-
-    Vm --- C_m[C_m: {st.session_state.c_mem}]
-    Vm --- M1_L[M1 Leak NMOS<br>W={st.session_state.w_m1_lk}µ / L={st.session_state.l_m1_lk}µ]
-    Vm --- M2_R[M2 Reset NMOS<br>W={st.session_state.w_m2_rst}µ / L={st.session_state.l_m2_rst}µ]
-
-    Vm --> ST
-
-    subgraph ST [Schmitt Trigger]
-        direction TB
-        M5[M5 PMOS: W={st.session_state.w_st_m5} / L={st.session_state.l_st_m5}]
-        M4[M4 PMOS: W={st.session_state.w_st_m4} / L={st.session_state.l_st_m4}]
-        M6[M6 PMOS: W={st.session_state.w_st_m6} / L={st.session_state.l_st_m6}]
-        M2_ST[M2 NMOS: W={st.session_state.w_st_m2} / L={st.session_state.l_st_m2}]
-        M1_ST[M1 NMOS: W={st.session_state.w_st_m1} / L={st.session_state.l_st_m1}]
-        M3[M3 NMOS: W={st.session_state.w_st_m3} / L={st.session_state.l_st_m3}]
-    end
-
-    ST --> Vo((V_o))
-
-    Vo --> U1>U1 Inversor<br>PMOS: W={st.session_state.w_inv_p} / L={st.session_state.l_inv_p}<br>NMOS: W={st.session_state.w_inv_n} / L={st.session_state.l_inv_n}]
-    Vo --> U2>U2 Inversor<br>PMOS: W={st.session_state.w_inv_p} / L={st.session_state.l_inv_p}<br>NMOS: W={st.session_state.w_inv_n} / L={st.session_state.l_inv_n}]
-
-    U1 -.->|Feedback| M2_R
-    U2 --> Out((Spike))
-    Out --- C_load[C_load: {st.session_state.c_load}]
-{md_ticks}
-        """)
 
 # ---------------------------------------------------------------------
 # ABA 1: SIMULADOR EDA
@@ -306,7 +275,6 @@ with aba_simulador:
 
                 pdk_path = "PDKs/sky130_fd_pr/models/corners/tt_lite.spice"
                 
-                # Montagem exata da topologia do Schmitt Trigger baseada nas nomenclaturas
                 netlist_content = f"""* SNN: LIF - Tool Web App
 
 .include {pdk_path}
