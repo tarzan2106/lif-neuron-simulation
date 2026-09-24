@@ -127,16 +127,16 @@ with aba_readme:
     st.header("📖 Guia de Uso")
     st.markdown("""
     **1. Sinais de entrada (Painel Lateral)**
-    Configure os pulsos de corrente ($I_{in}$) que entrarão no neurônio. Você pode adicionar pulsos exatos (com amplitude, largura e atraso definidos) ou estocásticos (aleatórios). Clique no botão azul para adicioná-los à lista de simulação.
+    Configure os pulsos de corrente ($I_{in}$) que entrarão no neurônio. Você pode adicionar pulsos exatos (com amplitude, largura e atraso definidos) ou estocásticos (aleatórios). Clique no botão vermelho para adicioná-los à lista de simulação.
     
     **2. Dimensionamento do Circuito**
-    Na aba **Dimensionamento**, defina as propriedades físicas do silício:
+    Na aba **Dimensionamento**:
     - Ajuste os capacitores ($C_m$, $C_{load}$) e as tensões ($V_{dd}$, $V_{lk}$, $V_{width}$).
     - Altere a largura ($W$) e o comprimento ($L$) de cada transistor individualmente. Os nomes correspondem ao esquemático da imagem ao lado.
-    - *Nota: Respeite os limites mínimos de litografia do processo de 130nm ($L \ge 0.15 \mu m$ e $W \ge 0.42 \mu m$).*
+    - *Nota: Respeite os limites mínimos da tecnologia skywater130nm ($L \ge 0.15 \mu m$ e $W \ge 0.42 \mu m$).*
     
     **3. Execução da Simulação**
-    Na aba **Simulador**, verifique o trem de pulsos no gráfico de pré-visualização. Estando tudo certo, clique em **RODAR SIMULAÇÃO**. O sistema gerará a *Netlist* e rodará o NGSpice. Os gráficos de resposta transiente aparecerão logo abaixo.
+    Na aba **Simulador**, verifique o sinal de entrada gerado a partir pulsos parametrizados no gráfico de pré-visualização. Estando tudo certo, clique em **RODAR SIMULAÇÃO**. O sistema gerará a *Netlist* e a simulará no NGSpice. Os gráficos de resposta do neurônio aparecerão logo abaixo.
     """)
 
 # ---------------------------------------------------------------------
