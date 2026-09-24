@@ -124,88 +124,78 @@ aba_simulador, aba_dimensionamento, aba_readme = st.tabs(["🚀 Simulador", "�
 # ABA 3: README (Instruções de Uso)
 # ---------------------------------------------------------------------
 with aba_readme:
-    st.header("📖 Como usar o SNN Lab EDA")
+    st.header("📖 Guia de Uso")
     st.markdown("""
-    Bem-vindo ao simulador web de neurônios Leaky Integrate-and-Fire (LIF). Esta ferramenta permite validar o comportamento transiente do circuito de um neurônio analógico mapeado para o processo de fabricação **SkyWater 130nm**.
+    **1. Sinais de entrada (Painel Lateral)**
+    Configure os pulsos de corrente ($I_{in}$) que entrarão no neurônio. Você pode adicionar pulsos exatos (com amplitude, largura e atraso definidos) ou estocásticos (aleatórios). Clique no botão azul para adicioná-los à lista de simulação.
     
-    ### 1. Injetando Estímulos (Painel Lateral)
-    O painel esquerdo funciona como o seu gerador de sinais. Você pode enfileirar pulsos de corrente sucessivos no nó de entrada do neurônio.
-    - **Pulsos exatos:** Permite inserir um ou múltiplos pulsos com amplitude, largura e espaçamento determinísticos.
-    - **Pulsos estocásticos:** Emula o comportamento ruidoso de uma rede neural biológica (SNN). Os tempos de chegada seguem uma distribuição Exponencial (processo de Poisson), enquanto a amplitude pode flutuar (ruído Uniforme ou Gaussiano).
+    **2. Dimensionamento do Circuito**
+    Na aba **Dimensionamento**, defina as propriedades físicas do silício:
+    - Ajuste os capacitores ($C_m$, $C_{load}$) e as tensões ($V_{dd}$, $V_{lk}$, $V_{width}$).
+    - Altere a largura ($W$) e o comprimento ($L$) de cada transistor individualmente. Os nomes correspondem ao esquemático da imagem ao lado.
+    - *Nota: Respeite os limites mínimos de litografia do processo de 130nm ($L \ge 0.15 \mu m$ e $W \ge 0.42 \mu m$).*
     
-    ### 2. Dimensionamento Físico (Aba Dimensionamento)
-    Nesta aba, você possui controle total sobre a geometria do silício.
-    - É possível alterar a largura (W) e o comprimento (L) de cada MOSFET individualmente.
-    - Tensões de alimentação (VDD) e viés analógico (V_lk, V_width) podem ser ajustadas em tempo real.
-    - **Atenção:** Mantenha os valores acima do limite de litografia do nó (L ≥ 0.15µm e W ≥ 0.42µm).
-    
-    ### 3. Rodando a Simulação (Aba Simulador)
-    Ao clicar em "Rodar Simulação", o sistema:
-    1. Lê a sua lista de estímulos e monta uma fonte PWL (*Piecewise Linear*).
-    2. Lê o seu dimensionamento e escreve uma *Netlist* SPICE parametrizada.
-    3. Aciona o motor nativo do **NGSpice** no servidor para calcular matrizes de transientes.
-    4. Devolve os gráficos interativos da tensão da membrana e dos *spikes* de saída.
+    **3. Execução da Simulação**
+    Na aba **Simulador**, verifique o trem de pulsos no gráfico de pré-visualização. Estando tudo certo, clique em **RODAR SIMULAÇÃO**. O sistema gerará a *Netlist* e rodará o NGSpice. Os gráficos de resposta transiente aparecerão logo abaixo.
     """)
 
 # ---------------------------------------------------------------------
 # ABA 2: DIMENSIONAMENTO E INSPETOR DE PROPRIEDADES
 # ---------------------------------------------------------------------
 with aba_dimensionamento:
-    # A coluna de parâmetros fica na esquerda (peso 1), a de imagem na direita (peso 1.3)
     col_params, col_img = st.columns([1, 1.3])
     
     with col_params:
         st.subheader("Componentes Passivos")
         cp1, cp2 = st.columns(2)
-        cp1.text_input("C_mem (Integração)", key="c_mem")
-        cp2.text_input("C_load (Carga na saída)", key="c_load")
+        cp1.text_input("$C_m$ (Integração)", key="c_mem")
+        cp2.text_input("$C_{load}$ (Carga na saída)", key="c_load")
         
         st.subheader("Tensões [Max: 1.8V]")
         t1, t2, t3 = st.columns(3)
-        t1.number_input("VDD", min_value=0.0, max_value=1.8, step=0.1, key="v_dd")
-        t2.number_input("V_lk", min_value=0.0, max_value=1.8, step=0.1, key="v_lk")
-        t3.number_input("V_width", min_value=0.0, max_value=1.8, step=0.1, key="v_width")
+        t1.number_input("$V_{dd}$", min_value=0.0, max_value=1.8, step=0.1, key="v_dd")
+        t2.number_input("$V_{lk}$", min_value=0.0, max_value=1.8, step=0.1, key="v_lk")
+        t3.number_input("$V_{width}$", min_value=0.0, max_value=1.8, step=0.1, key="v_width")
         
         st.subheader("Transistores (SkyWater 130nm)")
-        st.caption("Limites físicos: L = 0.15µm | W = 0.42µm")
+        st.caption("Limites físicos: $L \ge 0.15\mu m$ | $W \ge 0.42\mu m$")
         
         with st.expander("Schmitt Trigger (M1 a M6)", expanded=True):
             st.markdown("**Rede Pull-Up (PMOS)**")
             p1, p2, p3 = st.columns(3)
-            p1.number_input("M5 W", min_value=0.42, step=0.1, key="w_st_m5")
-            p1.number_input("M5 L", min_value=0.15, step=0.05, key="l_st_m5")
-            p2.number_input("M4 W", min_value=0.42, step=0.1, key="w_st_m4")
-            p2.number_input("M4 L", min_value=0.15, step=0.05, key="l_st_m4")
-            p3.number_input("M6 W", min_value=0.42, step=0.1, key="w_st_m6")
-            p3.number_input("M6 L", min_value=0.15, step=0.05, key="l_st_m6")
+            p1.number_input("M5 ($W$)", min_value=0.42, step=0.1, key="w_st_m5")
+            p1.number_input("M5 ($L$)", min_value=0.15, step=0.05, key="l_st_m5")
+            p2.number_input("M4 ($W$)", min_value=0.42, step=0.1, key="w_st_m4")
+            p2.number_input("M4 ($L$)", min_value=0.15, step=0.05, key="l_st_m4")
+            p3.number_input("M6 ($W$)", min_value=0.42, step=0.1, key="w_st_m6")
+            p3.number_input("M6 ($L$)", min_value=0.15, step=0.05, key="l_st_m6")
             
             st.markdown("**Rede Pull-Down (NMOS)**")
             n1, n2, n3 = st.columns(3)
-            n1.number_input("M2 W", min_value=0.42, step=0.1, key="w_st_m2")
-            n1.number_input("M2 L", min_value=0.15, step=0.05, key="l_st_m2")
-            n2.number_input("M1 W", min_value=0.42, step=0.1, key="w_st_m1")
-            n2.number_input("M1 L", min_value=0.15, step=0.05, key="l_st_m1")
-            n3.number_input("M3 W", min_value=0.42, step=0.1, key="w_st_m3")
-            n3.number_input("M3 L", min_value=0.15, step=0.05, key="l_st_m3")
+            n1.number_input("M2 ($W$)", min_value=0.42, step=0.1, key="w_st_m2")
+            n1.number_input("M2 ($L$)", min_value=0.15, step=0.05, key="l_st_m2")
+            n2.number_input("M1 ($W$)", min_value=0.42, step=0.1, key="w_st_m1")
+            n2.number_input("M1 ($L$)", min_value=0.15, step=0.05, key="l_st_m1")
+            n3.number_input("M3 ($W$)", min_value=0.42, step=0.1, key="w_st_m3")
+            n3.number_input("M3 ($L$)", min_value=0.15, step=0.05, key="l_st_m3")
 
-        with st.expander("Inversores (U1 e U2)"):
+        with st.expander("Inversores ($U_1$ e $U_2$)"):
             c_inv1, c_inv2 = st.columns(2)
-            c_inv1.number_input("PMOS (W)", min_value=0.42, step=0.1, key="w_inv_p")
-            c_inv1.number_input("PMOS (L)", min_value=0.15, step=0.05, key="l_inv_p")
-            c_inv2.number_input("NMOS (W)", min_value=0.42, step=0.1, key="w_inv_n")
-            c_inv2.number_input("NMOS (L)", min_value=0.15, step=0.05, key="l_inv_n")
+            c_inv1.number_input("PMOS ($W$)", min_value=0.42, step=0.1, key="w_inv_p")
+            c_inv1.number_input("PMOS ($L$)", min_value=0.15, step=0.05, key="l_inv_p")
+            c_inv2.number_input("NMOS ($W$)", min_value=0.42, step=0.1, key="w_inv_n")
+            c_inv2.number_input("NMOS ($L$)", min_value=0.15, step=0.05, key="l_inv_n")
             
         with st.expander("Controle da Membrana (NMOS)"):
             c_ctrl1, c_ctrl2 = st.columns(2)
-            c_ctrl1.number_input("M1 Leak (W)", min_value=0.42, step=0.1, key="w_m1_lk")
-            c_ctrl1.number_input("M1 Leak (L)", min_value=0.15, step=0.05, key="l_m1_lk")
-            c_ctrl2.number_input("M2 Reset (W)", min_value=0.42, step=0.1, key="w_m2_rst")
-            c_ctrl2.number_input("M2 Reset (L)", min_value=0.15, step=0.05, key="l_m2_rst")
+            c_ctrl1.number_input("$M_{lk}$ ($W$)", min_value=0.42, step=0.1, key="w_m1_lk")
+            c_ctrl1.number_input("$M_{lk}$ ($L$)", min_value=0.15, step=0.05, key="l_m1_lk")
+            c_ctrl2.number_input("$M_{rst}$ ($W$)", min_value=0.42, step=0.1, key="w_m2_rst")
+            c_ctrl2.number_input("$M_{rst}$ ($L$)", min_value=0.15, step=0.05, key="l_m2_rst")
 
     with col_img:
         st.subheader("Topologia Física")
         try:
-            # O Streamlit tentará carregar a imagem da mesma pasta do app.py
             st.image("esquematico.png", use_container_width=True)
         except:
             st.info("💡 Para visualizar o circuito aqui, faça o upload da imagem do esquemático para o seu repositório GitHub com o nome exato de 'esquematico.png'.")
